@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Upload, CheckCircle2, AlertCircle, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { registerCertificate } from "@/blockchain/register";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -114,90 +115,71 @@ export default function Dashboard() {
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      toast({
-        variant: "destructive",
-        title: "Nenhum arquivo selecionado",
-        description: "Selecione um arquivo PDF primeiro.",
-      });
-      return;
-    }
+  if (!file) {
+    toast({
+      variant: "destructive",
+      title: "Nenhum arquivo selecionado",
+      description: "Selecione um arquivo PDF primeiro.",
+    });
+    return;
+  }
 
-    if (!isMetaMaskConnected) {
-      toast({
-        variant: "destructive",
-        title: "MetaMask não conectado",
-        description: "Conecte sua carteira MetaMask primeiro.",
-      });
-      return;
-    }
+  if (!isMetaMaskConnected) {
+    toast({
+      variant: "destructive",
+      title: "MetaMask não conectado",
+      description: "Conecte sua carteira MetaMask primeiro.",
+    });
+    return;
+  }
 
-    setIsUploading(true);
+  setIsUploading(true);
 
-    try {
-      const fileHash = await generateHash(file);
-      console.log("Hash do arquivo:", fileHash);
+  try {
+    const fileHash = await generateHash(file);
+    console.log("Hash do arquivo:", fileHash);
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
+    const result = await registerCertificate(
+      fileHash as `0x${string}`,
+      "Sistema FATEC",              
+      userEmail,                    
+      file.name,                    
+      Math.floor(Date.now() / 1000) + 31536000 
+    );
 
-      const tx = await signer.sendTransaction({
-        to: account, 
-        value: 0,
-        data: fileHash,
-      });
+    toast({
+      title: "Certificado registrado!",
+      description: (
+        <div className="flex flex-col gap-2">
+          <p className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            Registro realizado na blockchain
+          </p>
 
-      toast({
-        title: "Transação enviada",
-        description: "Aguardando confirmação na blockchain...",
-      });
+          <p className="text-sm">
+            <strong>Tx Hash:</strong><br />
+            <code className="text-xs break-all">{result.txHash}</code>
+          </p>
+        </div>
+      ),
+    });
 
-      const receipt = await tx.wait();
+    
+    setFile(null);
+    const input = document.getElementById("file-upload") as HTMLInputElement;
+    if (input) input.value = "";
 
-      toast({
-        title: "Sucesso!",
-        description: (
-          <div className="flex flex-col gap-2">
-            <p className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              Arquivo registrado na blockchain
-            </p>
-            <p className="text-sm">
-              <strong>ID da Transação:</strong>
-              <br />
-              <code className="text-xs break-all">{receipt?.hash}</code>
-            </p>
-          </div>
-        ),
-      });
-
-      setFile(null);
-      const input = document.getElementById("file-upload") as HTMLInputElement;
-      if (input) input.value = "";
-
-    } catch (error) {
-      console.error("Erro no upload:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro no registro",
-        description: (
-          <div className="flex flex-col gap-2">
-            <p className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              {error.message || "Erro ao registrar na blockchain"}
-            </p>
-            {error.reason && (
-              <p className="text-sm">
-                <strong>Motivo:</strong> {error.reason}
-              </p>
-            )}
-          </div>
-        ),
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
+  } catch (error: any) {
+    console.error("Erro ao registrar:", error);
+    toast({
+      variant: "destructive",
+      title: "Erro no registro",
+      description: error?.message || "Falha desconhecida",
+    });
+  } finally {
+    setIsUploading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
